@@ -4712,6 +4712,8 @@ describe("OrchestratorMcpService thread list", () => {
       pendingBackgroundTasks: [
         { taskId: "sleep-600", kind: "command" as const, awaited: true as const },
       ],
+      branch: "feature/a",
+      worktreePath: "/repo/.t3/worktrees/feature-a",
     },
   ];
   const shellRequests: Array<ReadonlyArray<ThreadId>> = [];
@@ -4853,6 +4855,22 @@ describe("OrchestratorMcpService thread list", () => {
       const error = yield* mcp.listThreads(client, {}).pipe(Effect.flip);
       assert.equal(error.code, "target_required");
       assert.include(error.message, "allProjects");
+    }).pipe(Effect.provide(service)),
+  );
+
+  it.effect("says which branch and worktree each thread works in", () =>
+    Effect.gen(function* () {
+      const mcp = yield* OrchestratorMcpService.OrchestratorMcpService;
+      const listed = yield* mcp.listThreads(client, { allProjects: true });
+      const where = (threadId: string) => {
+        const item = listed.threads.find((thread) => thread.threadId === threadId);
+        return [item?.branch, item?.worktreePath];
+      };
+      assert.deepStrictEqual(where("thread:a-awaiting-command"), [
+        "feature/a",
+        "/repo/.t3/worktrees/feature-a",
+      ]);
+      assert.deepStrictEqual(where("thread:a-awake"), [null, null]);
     }).pipe(Effect.provide(service)),
   );
 });
