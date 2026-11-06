@@ -6,7 +6,11 @@ import * as NodePath from "node:path";
 
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { AuthStandardClientScopes, ORCHESTRATION_PROTOCOL_VERSION } from "@t3tools/contracts";
+import {
+  type AuthSessionId,
+  AuthStandardClientScopes,
+  ORCHESTRATION_PROTOCOL_VERSION,
+} from "@t3tools/contracts";
 import * as NetService from "@t3tools/shared/Net";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import { assert, describe, expect, it } from "@effect/vitest";
@@ -15,14 +19,16 @@ import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
-import { FetchHttpClient } from "effect/http";
+import { FetchHttpClient, HttpServerRequest } from "effect/http";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 import * as TestClock from "effect/testing/TestClock";
 import * as TestConsole from "effect/testing/TestConsole";
 import { Command, CliError } from "effect/cli";
 
+import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
 import { cli } from "../binCli.ts";
 import {
   SERVICE_LAUNCHER_CONTEXT_ENV,
@@ -34,6 +40,8 @@ import {
   persistServerRuntimeState,
   type PersistedServerRuntimeState,
 } from "../serverRuntimeState.ts";
+import * as ServerConfig from "../config.ts";
+import { resolveCliAuthConfig } from "./config.ts";
 import { DevServerNotProxiableError, resolveTailscaleLocalTarget } from "./pair.ts";
 
 import packageJson from "../../package.json" with { type: "json" };
@@ -535,6 +543,51 @@ describe("auth scope options", () => {
   );
 });
 
+describe("auth mcp-token", () => {
+  it.effect.each([
+    { flags: [], access: "approval-required", label: "t3 auth mcp-token" },
+    {
+      flags: ["--access", "auto", "--label", "task monitor"],
+      access: "auto",
+      label: "task monitor",
+    },
+  ] as const)("issues a token /mcp accepts at $access", ({ flags, access, label }) =>
+    Effect.gen(function* () {
+      const baseDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-cli-mcp-token-test-"));
+      const issued = JSON.parse(
+        yield* captureStdout(
+          runCli(["auth", "mcp-token", "--base-dir", baseDir, "--json", ...flags]),
+        ),
+      ) as {
+        readonly sessionId: AuthSessionId;
+        readonly token: string;
+        readonly expiresAt: string;
+      };
+
+      const config = yield* resolveCliAuthConfig({ baseDir: Option.some(baseDir) }, Option.none(), {
+        quietLogs: true,
+      });
+      const session = yield* EnvironmentAuth.EnvironmentAuth.pipe(
+        Effect.flatMap((auth) =>
+          auth.authenticateMcpClient(
+            HttpServerRequest.fromWeb(
+              new Request("http://127.0.0.1:3773/mcp", {
+                headers: { authorization: `Bearer ${issued.token}` },
+              }),
+            ),
+          ),
+        ),
+        Effect.provide(
+          EnvironmentAuth.layerRuntime.pipe(Layer.provide(ServerConfig.layer(config))),
+        ),
+      );
+
+      assert.deepEqual(session, { sessionId: issued.sessionId, label, access, peerLink: false });
+      assert.isFalse(Number.isNaN(Date.parse(issued.expiresAt)));
+    }).pipe(Effect.provide(layerCliRuntime)),
+  );
+});
+
 describe("auth pairing create --base-url", () => {
   it.effect.each(["192.168.1.5:3773", "localhost:3773", "ftp://localhost:3773"])(
     "rejects %s before issuing a token",
@@ -599,6 +652,7 @@ describe("scripted auth output", () => {
   it.effect.each(
     [
       ["auth", "session", "issue", "--token-only"],
+      ["auth", "mcp-token", "--token-only"],
       ["auth", "session", "list", "--json"],
       ["auth", "pairing", "list", "--json"],
     ].map((command) => ({ command, label: command.join(" ") })),
