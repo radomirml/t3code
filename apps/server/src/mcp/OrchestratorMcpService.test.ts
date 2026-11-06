@@ -23,6 +23,7 @@ import {
   ProviderThreadId,
   ProviderTurnId,
   RunId,
+  RuntimeRequestId,
   ThreadId,
   type OrchestrationV2ServerCommand,
   type OrchestrationV2StoredEvent,
@@ -4715,6 +4716,20 @@ describe("OrchestratorMcpService thread list", () => {
       branch: "feature/a",
       worktreePath: "/repo/.t3/worktrees/feature-a",
     },
+    {
+      ...shell("thread:c-finished", "project:c", false),
+      lastVisitedAt: DateTime.makeUnsafe("2026-11-02T10:00:00Z"),
+      latestRunCompletedAt: DateTime.makeUnsafe("2026-11-02T11:00:00Z"),
+    },
+    {
+      ...shell("thread:c-waiting", "project:c", false),
+      pendingRuntimeRequest: {
+        id: RuntimeRequestId.make("request:c-waiting"),
+        kind: "user_input" as const,
+        createdAt: DateTime.makeUnsafe("2026-11-02T12:00:00Z"),
+      },
+      hasActionableProposedPlan: true,
+    },
   ];
   const shellRequests: Array<ReadonlyArray<ThreadId>> = [];
   const service = layerOrchestratorService.pipe(
@@ -4762,6 +4777,36 @@ describe("OrchestratorMcpService thread list", () => {
         Layer.mock(ScheduledTaskService.ScheduledTaskService)({}),
       ),
     ),
+  );
+
+  it.effect("reports when each thread was visited and finished, and what it waits on", () =>
+    Effect.gen(function* () {
+      const mcp = yield* OrchestratorMcpService.OrchestratorMcpService;
+      const listed = yield* mcp.listThreads(client, { allProjects: true });
+      const attention = (threadId: string) => {
+        const item = listed.threads.find((thread) => thread.threadId === threadId);
+        return [
+          item?.lastVisitedAt,
+          item?.latestRunCompletedAt,
+          item?.pendingRequest,
+          item?.hasActionableProposedPlan,
+        ];
+      };
+      assert.deepStrictEqual(attention("thread:c-finished"), [
+        "2026-11-02T10:00:00.000Z",
+        "2026-11-02T11:00:00.000Z",
+        null,
+        false,
+      ]);
+      // A request from an older server has no `blocking` flag, and those always blocked.
+      assert.deepStrictEqual(attention("thread:c-waiting"), [
+        null,
+        null,
+        { kind: "user_input", createdAt: "2026-11-02T12:00:00.000Z", blocking: true },
+        true,
+      ]);
+      assert.deepStrictEqual(attention("thread:a-awake"), [null, null, null, false]);
+    }).pipe(Effect.provide(service)),
   );
 
   it.effect("lists snoozed threads across every project with allProjects", () =>
