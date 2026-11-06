@@ -37,6 +37,7 @@ import { ThreadTitleRegeneration } from "./threadTitle.ts";
 import {
   OrchestrationV2Actor,
   OrchestrationV2CreationSource,
+  OrchestrationV2PendingRuntimeRequestSummary,
   OrchestrationV2RunStatus,
   OrchestrationV2TurnItemStatus,
 } from "./orchestrationV2.ts";
@@ -379,6 +380,19 @@ export const OrchestratorMcpThreadListItem = Schema.Struct({
   itemCount: NonNegativeInt,
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
+  /** These are absent from older servers, whose lists linked environments forward. */
+  lastVisitedAt: Schema.optional(Schema.NullOr(IsoDateTime)),
+  latestRunCompletedAt: Schema.optional(Schema.NullOr(IsoDateTime)),
+  pendingRequest: Schema.optional(
+    Schema.NullOr(
+      Schema.Struct({
+        kind: OrchestrationV2PendingRuntimeRequestSummary.fields.kind,
+        createdAt: IsoDateTime,
+        blocking: Schema.Boolean,
+      }),
+    ),
+  ),
+  hasActionableProposedPlan: Schema.optional(Schema.Boolean),
 });
 export type OrchestratorMcpThreadListItem = typeof OrchestratorMcpThreadListItem.Type;
 
