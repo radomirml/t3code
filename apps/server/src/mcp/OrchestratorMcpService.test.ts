@@ -3414,6 +3414,11 @@ describe("OrchestratorMcpService thread list", () => {
   const shells = [
     shell("thread:a-snoozed", "project:a", true),
     shell("thread:a-awake", "project:a", false),
+    {
+      ...shell("thread:a-worktree", "project:a", false),
+      branch: "feature/a",
+      worktreePath: "/repo/.t3/worktrees/feature-a",
+    },
     shell("thread:b-snoozed", "project:b", true),
   ];
   const service = layerOrchestratorService.pipe(
@@ -3458,6 +3463,22 @@ describe("OrchestratorMcpService thread list", () => {
           ["thread:b-snoozed", "project:b"],
         ],
       );
+    }).pipe(Effect.provide(service)),
+  );
+
+  it.effect("says which branch and worktree each thread works in", () =>
+    Effect.gen(function* () {
+      const mcp = yield* OrchestratorMcpService.OrchestratorMcpService;
+      const listed = yield* mcp.listThreads(client, { allProjects: true });
+      const where = (threadId: string) => {
+        const item = listed.threads.find((thread) => thread.threadId === threadId);
+        return [item?.branch, item?.worktreePath];
+      };
+      assert.deepStrictEqual(where("thread:a-worktree"), [
+        "feature/a",
+        "/repo/.t3/worktrees/feature-a",
+      ]);
+      assert.deepStrictEqual(where("thread:a-awake"), [null, null]);
     }).pipe(Effect.provide(service)),
   );
 });
