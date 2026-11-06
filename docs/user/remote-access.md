@@ -88,6 +88,14 @@ If a server is already running, generate a fresh link without restarting it:
 t3 pair
 ```
 
+`t3 pair` picks the machine's local network address. If other devices reach it
+another way, such as a VPN name, a WireGuard address or a reverse proxy, pass
+that address:
+
+```bash
+t3 pair --base-url http://machine.vpn.example:3773
+```
+
 Scan the QR code on your phone or paste the pairing URL into **Add environment**
 in the receiving app. Connection settings are under **Settings → Environments**
 on web and desktop and **Settings → Environments** on mobile. A loopback address

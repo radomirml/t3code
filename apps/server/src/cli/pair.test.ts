@@ -276,6 +276,70 @@ describe("t3 pair", () => {
     ).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
 
+  it.effect.each([
+    { reaches: "this server", answers: true },
+    { reaches: "nothing", answers: false },
+  ])("pairs through a --base-url that reaches $reaches", ({ answers }) =>
+    withDescriptorServer((origin) =>
+      Effect.gen(function* () {
+        const baseDir = NodeFS.mkdtempSync(
+          NodePath.join(NodeOS.tmpdir(), "t3-pair-base-url-test-"),
+        );
+        const port = Number(new URL(origin).port);
+        yield* persistServerRuntimeState({
+          path: NodePath.join(baseDir, "userdata", "server-runtime.json"),
+          state: yield* makePersistedServerRuntimeState({
+            config: { host: "127.0.0.1", devUrl: undefined },
+            port,
+          }),
+        });
+        const baseUrl = answers ? `http://localhost:${String(port)}` : "http://127.0.0.1:1";
+
+        const output = yield* captureStdout(
+          runCli(["pair", "--base-dir", baseDir, "--base-url", `${baseUrl}/ignored`]),
+        );
+
+        assert.include(output, `Pairing URL: ${baseUrl}/pair#token=`);
+        assert.equal(output.includes(`did not answer at ${baseUrl}`), !answers);
+      }),
+    ).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
+  );
+
+  it.effect("refuses a --base-url that reaches a different T3 Code server", () =>
+    withDescriptorServer((origin) =>
+      withDescriptorServer(
+        (otherOrigin) =>
+          Effect.gen(function* () {
+            const baseDir = NodeFS.mkdtempSync(
+              NodePath.join(NodeOS.tmpdir(), "t3-pair-base-url-other-test-"),
+            );
+            yield* persistServerRuntimeState({
+              path: NodePath.join(baseDir, "userdata", "server-runtime.json"),
+              state: yield* makePersistedServerRuntimeState({
+                config: { host: "127.0.0.1", devUrl: undefined },
+                port: Number(new URL(origin).port),
+              }),
+            });
+
+            const error = yield* provideCliTestLayers(
+              runCli(["pair", "--base-dir", baseDir, "--base-url", otherOrigin]).pipe(Effect.flip),
+            );
+
+            if (!CliError.isCliError(error) || error._tag !== "UserError") {
+              assert.fail(`Expected UserError, got ${String(error)}`);
+            }
+            assert.include(error.userMessage, "reaches a different T3 Code server");
+            const listed = yield* captureStdout(
+              runCli(["auth", "pairing", "list", "--base-dir", baseDir, "--json"]),
+            );
+            assert.deepEqual(JSON.parse(listed), []);
+          }),
+        "127.0.0.1",
+        { ...testDescriptor, environmentId: "other-environment" },
+      ),
+    ).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
+  );
+
   it.effect("refuses --tailscale before turning on Serve when the policy keeps clients local", () =>
     withDescriptorServer((origin) =>
       Effect.gen(function* () {

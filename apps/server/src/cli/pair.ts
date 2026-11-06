@@ -25,7 +25,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as References from "effect/References";
 import * as Schema from "effect/Schema";
-import { Command, Flag, GlobalFlag } from "effect/cli";
+import { CliError, Command, Flag, GlobalFlag } from "effect/cli";
 import { FetchHttpClient, HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
 
 import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
@@ -47,7 +47,7 @@ import {
   resolveHeadlessConnectionString,
 } from "../startupAccess.ts";
 import { authScopesFlag } from "./authScopes.ts";
-import { baseDirFlag, DurationFromString } from "./config.ts";
+import { baseDirFlag, DurationFromString, HttpUrlFromString } from "./config.ts";
 
 const WELL_KNOWN_ENVIRONMENT_PATH = "/.well-known/t3/environment";
 const PAIR_PROBE_TIMEOUT = Duration.millis(2_500);
@@ -473,6 +473,14 @@ const tailscaleServePortFlag = Flag.Int("tailscale-serve-port").pipe(
   Flag.withDefault(DEFAULT_TAILSCALE_SERVE_PORT),
 );
 
+const baseUrlFlag = Flag.String("base-url").pipe(
+  Flag.withSchema(HttpUrlFromString),
+  Flag.withDescription(
+    "Address other devices reach this server at, such as a VPN name or reverse proxy. The pairing URL and QR code use it.",
+  ),
+  Flag.optional,
+);
+
 export const pairCommand = Command.make("pair", {
   baseDir: baseDirFlag,
   scopes: authScopesFlag(AuthStandardClientScopes),
@@ -480,12 +488,19 @@ export const pairCommand = Command.make("pair", {
   label: labelFlag,
   tailscale: tailscaleFlag,
   tailscaleServePort: tailscaleServePortFlag,
+  baseUrl: baseUrlFlag,
 }).pipe(
   Command.withDescription(
     "Mint a pairing token for a running T3 Code server and print it as a QR code.",
   ),
   Command.withHandler((flags) =>
     Effect.gen(function* () {
+      if (flags.tailscale && Option.isSome(flags.baseUrl)) {
+        return yield* new CliError.UserError({
+          cause: flags.baseUrl.value.href,
+          userMessage: "Pass either --tailscale or --base-url, not both.",
+        });
+      }
       const cliLogLevel = yield* GlobalFlag.LogLevel;
       const logLevel = Option.getOrElse(cliLogLevel, () => "Warn" as const);
 
@@ -503,7 +518,20 @@ export const pairCommand = Command.make("pair", {
 
       const notes: Array<string> = [];
       let pairingBaseUrl: string;
-      if (flags.tailscale) {
+      if (Option.isSome(flags.baseUrl)) {
+        pairingBaseUrl = flags.baseUrl.value.origin;
+        const probed = yield* probeEnvironmentDescriptor(pairingBaseUrl);
+        if (probed._tag !== "descriptor") {
+          notes.push(
+            `This server did not answer at ${pairingBaseUrl} from this machine. If it listens only on this machine, restart it with --lan or --host.`,
+          );
+        } else if (probed.descriptor.environmentId !== target.descriptor.environmentId) {
+          return yield* new CliError.UserError({
+            cause: pairingBaseUrl,
+            userMessage: `${pairingBaseUrl} reaches a different T3 Code server than the one at ${target.state.origin}, so the pairing URL would not work.`,
+          });
+        }
+      } else if (flags.tailscale) {
         // Serve stays on after this command exits, so refuse before turning it on.
         const policy = yield* ManagedPolicy.ManagedPolicy.pipe(Effect.provide(ManagedPolicy.layer));
         if (!ManagedLimits.allowsRemoteClients(policy)) {
