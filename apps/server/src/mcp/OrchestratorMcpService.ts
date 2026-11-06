@@ -819,6 +819,18 @@ function listItemFromShell(
     itemCount: shell.visibleItemCount,
     createdAt: DateTime.formatIso(shell.createdAt),
     updatedAt: DateTime.formatIso(shell.updatedAt),
+    lastVisitedAt: shell.lastVisitedAt == null ? null : DateTime.formatIso(shell.lastVisitedAt),
+    latestRunCompletedAt:
+      shell.latestRunCompletedAt == null ? null : DateTime.formatIso(shell.latestRunCompletedAt),
+    pendingRequest:
+      shell.pendingRuntimeRequest === null
+        ? null
+        : {
+            kind: shell.pendingRuntimeRequest.kind,
+            createdAt: DateTime.formatIso(shell.pendingRuntimeRequest.createdAt),
+            blocking: shell.pendingRuntimeRequest.blocking ?? true,
+          },
+    hasActionableProposedPlan: shell.hasActionableProposedPlan,
   };
 }
 
