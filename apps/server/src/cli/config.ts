@@ -47,6 +47,14 @@ export const baseDirFlag = Flag.String("base-dir").pipe(
   ),
   Flag.optional,
 );
+export const HttpUrlFromString = Schema.URLFromString.pipe(
+  Schema.check(
+    Schema.makeFilter((url) => url.protocol === "http:" || url.protocol === "https:", {
+      expected: "an http:// or https:// URL",
+    }),
+  ),
+);
+
 const devUrlFlag = Flag.String("dev-url").pipe(
   Flag.withSchema(Schema.URLFromString),
   Flag.withDescription("Dev web URL to proxy/redirect to (equivalent to VITE_DEV_SERVER_URL)."),
