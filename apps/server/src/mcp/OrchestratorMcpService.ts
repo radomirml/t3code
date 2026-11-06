@@ -957,6 +957,8 @@ function listItemFromShell(
     interactionMode: shell.interactionMode,
     linkedPullRequest: shell.linkedPullRequest ?? null,
     ...threadPullRequests(shell.pullRequests),
+    branch: shell.branch,
+    worktreePath: shell.worktreePath,
     ...threadSettlement(shell),
     ...threadSnooze(shell, nowMs),
     pinned: shell.pinnedAt != null,

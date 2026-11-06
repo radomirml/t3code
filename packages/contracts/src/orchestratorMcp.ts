@@ -410,6 +410,9 @@ export const OrchestratorMcpThreadListItem = Schema.Struct({
   pullRequests: Schema.optional(Schema.Array(OrchestratorMcpThreadPullRequest)),
   pullRequestCount: Schema.optional(NonNegativeInt),
   openPullRequestCount: Schema.optional(NonNegativeInt),
+  /** Absent from older servers, whose lists linked environments forward. */
+  branch: Schema.optional(Schema.NullOr(Schema.String)),
+  worktreePath: Schema.optional(Schema.NullOr(Schema.String)),
   settled: Schema.Boolean,
   settledAt: Schema.NullOr(IsoDateTime),
   snoozed: Schema.Boolean,
