@@ -1,4 +1,4 @@
-import { AuthSessionId, AuthStandardClientScopes } from "@t3tools/contracts";
+import { AuthMcpClientAccess, AuthSessionId, AuthStandardClientScopes } from "@t3tools/contracts";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -10,6 +10,7 @@ import { Argument, Command, Flag, GlobalFlag } from "effect/cli";
 import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
 
 import {
+  formatIssuedMcpToken,
   formatIssuedPairingCredential,
   formatIssuedSession,
   formatPairingCredentialList,
@@ -248,7 +249,47 @@ const sessionCommand = Command.make("session").pipe(
   Command.withSubcommands([sessionIssueCommand, sessionListCommand, sessionRevokeCommand]),
 );
 
+const mcpTokenCommand = Command.make("mcp-token", {
+  ...authLocationFlags,
+  access: Flag.Literals("access", AuthMcpClientAccess.literals).pipe(
+    Flag.withDescription(
+      "What the client may do; threads it starts or steers run at most at this mode. Defaults to approval-required.",
+    ),
+    Flag.withDefault("approval-required"),
+  ),
+  label: labelFlag,
+  tokenOnly: tokenOnlyFlag,
+  json: jsonFlag,
+}).pipe(
+  Command.withDescription(
+    "Issue a 30-day bearer token for the MCP endpoint, for a script on this host. Revoke it with `t3 auth session revoke`.",
+  ),
+  Command.withHandler((flags) =>
+    runWithEnvironmentAuth(
+      flags,
+      (environmentAuth) =>
+        Effect.gen(function* () {
+          const issued = yield* environmentAuth.issueMcpClientSession({
+            label: Option.getOrElse(flags.label, () => "t3 auth mcp-token"),
+            access: flags.access,
+            peerLink: false,
+            client: { deviceType: "bot" },
+          });
+          yield* Console.log(
+            formatIssuedMcpToken(issued, {
+              json: flags.json,
+              tokenOnly: flags.tokenOnly,
+            }),
+          );
+        }),
+      {
+        quietLogs: flags.json || flags.tokenOnly,
+      },
+    ),
+  ),
+);
+
 export const authCommand = Command.make("auth").pipe(
   Command.withDescription("Manage the local auth control plane for headless deployments."),
-  Command.withSubcommands([pairingCommand, sessionCommand]),
+  Command.withSubcommands([pairingCommand, sessionCommand, mcpTokenCommand]),
 );

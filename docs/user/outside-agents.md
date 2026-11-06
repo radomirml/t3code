@@ -114,6 +114,20 @@ the message to read it from stdin.
 2 when the agent waits for an answer you give in the app. Add `--json` for a
 result that always includes the thread id.
 
+A script with its own MCP client can call every tool without a sign-in page.
+Issue it a token on the host:
+
+```sh
+t3 auth mcp-token --access full-access --label "my script" --token-only
+```
+
+The script sends it as `Authorization: Bearer <token>` to the MCP URL.
+`--access` takes `read-only`, `approval-required` (Supervised),
+`auto-accept-edits`, `auto` or `full-access`, and defaults to
+`approval-required`. The token lasts 30 days and appears under **Settings →
+Sharing & access** with the approved agents. Revoke it there or with
+`t3 auth session revoke <id>`.
+
 ## Remove an agent
 
 Approved agents appear under **Settings → Sharing & access** like other clients.
