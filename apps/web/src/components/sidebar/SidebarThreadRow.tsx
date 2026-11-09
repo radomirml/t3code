@@ -105,6 +105,7 @@ import {
   useLinkedThreadPullRequest,
   ThreadSearchPullRequestNumber,
 } from "../ThreadStatusIndicators";
+import { formatWorktreePathForDisplay } from "../../worktreeCleanup";
 import { pickSnoozePreset, resolveSnoozePresets, type SnoozePreset } from "../Sidebar.snooze";
 import { useThreadShell } from "../../state/entities";
 import { ProjectFavicon, type ProjectFaviconProject } from "../ProjectFavicon";
@@ -569,6 +570,7 @@ type SidebarThreadRowProps = {
   currentEnvironmentId: string | null;
   environmentLabel: string | null;
   environmentMachine: EnvironmentMachineKind;
+  isScratch: boolean;
   scratchMachineLabel: string | null;
   project: EnvironmentProject | null;
   projectDisplayName: string | null;
@@ -1150,9 +1152,15 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       </span>
     ) : null;
   const diff = latestRunDiff(thread);
+  // A Scratch thread's folder is not a checkout, so it stays unnamed.
+  const worktreeName =
+    !props.isScratch && thread.worktreePath?.trim()
+      ? formatWorktreePathForDisplay(thread.worktreePath)
+      : null;
   // Only the trailing icons would remain, so the row moves them to the title line instead.
   const metaLineEmpty =
     !thread.branch &&
+    worktreeName === null &&
     !showsScratchMachine &&
     prBadge === null &&
     diff === null &&
@@ -1174,6 +1182,13 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
             className="size-3 shrink-0"
           />
           <span className="min-w-0 flex-1 truncate">{props.scratchMachineLabel}</span>
+        </>
+      ) : worktreeName !== null ? (
+        <>
+          <ThreadWorktreeIndicator thread={thread} />
+          <span className="flex min-w-0 flex-1">
+            <MiddleTruncate value={worktreeName} showTitle={false} />
+          </span>
         </>
       ) : (
         <span className="flex-1" />

@@ -1157,17 +1157,17 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   }, [clearSelection, revealWidensScope, setPersistedProjectScopeKeys]);
   const revealActiveRow = useActiveRowReveal(routeReveal, routeRowThreadKey);
   const showProjectEnvironments = projectGroupsSpanEnvironments(projectGroups);
+  const isScratchThread = (thread: Pick<SidebarThreadSummary, "environmentId" | "projectId">) => {
+    const project = projectByKey.get(`${thread.environmentId}:${thread.projectId}`);
+    return (
+      project !== undefined &&
+      isScratchProject(project, serverConfigs.get(thread.environmentId)?.scratchWorkspaceRoot)
+    );
+  };
   const scratchMachineLabelFor = (
     thread: Pick<SidebarThreadSummary, "environmentId" | "projectId">,
   ) => {
-    if (!showProjectEnvironments) return null;
-    const project = projectByKey.get(`${thread.environmentId}:${thread.projectId}`);
-    if (
-      !project ||
-      !isScratchProject(project, serverConfigs.get(thread.environmentId)?.scratchWorkspaceRoot)
-    ) {
-      return null;
-    }
+    if (!showProjectEnvironments || !isScratchThread(thread)) return null;
     return environmentLabelById.get(thread.environmentId) ?? null;
   };
   // Pinning from a row keeps rows in place while the menu is open.
@@ -3398,6 +3398,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             environmentMachine={
                               environmentMachineById.get(thread.environmentId) ?? "server"
                             }
+                            isScratch={isScratchThread(thread)}
                             scratchMachineLabel={scratchMachineLabelFor(thread)}
                             project={
                               projectByKey.get(`${thread.environmentId}:${thread.projectId}`) ??
