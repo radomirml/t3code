@@ -262,11 +262,13 @@ const make = Effect.gen(function* () {
   const threads = yield* ThreadManagement.ThreadManagementService;
   const eventSink = yield* EventSink.EventSinkV2;
   const managedFolders = yield* ManagedProjectFolders.ManagedProjectFolders;
-  // A project-folder launch that names no branch records the folder's checkout, as the composer does.
+  // A launch into an existing folder that names no branch records its checkout, as the composer does.
   const launchBranch = (strategy: ThreadLaunchWorkspaceStrategy, workspaceRoot: string) =>
-    strategy.type === "root" && strategy.branch === undefined
-      ? git.currentBranch(workspaceRoot).pipe(Effect.orElseSucceed(() => null))
-      : Effect.succeed(strategy.branch ?? null);
+    strategy.type === "worktree" || strategy.branch !== undefined
+      ? Effect.succeed(strategy.branch ?? null)
+      : git
+          .currentBranch(strategy.type === "root" ? workspaceRoot : strategy.worktreePath)
+          .pipe(Effect.orElseSucceed(() => null));
   const preparationScope = yield* Scope.make("sequential");
   const scheduledLaunches = yield* Ref.make<ReadonlySet<CommandId>>(new Set());
   yield* Effect.addFinalizer(() => Scope.close(preparationScope, Exit.void));
