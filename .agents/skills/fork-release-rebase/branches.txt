@@ -1,0 +1,17 @@
+# Fork branches, one commit each. Order of "tag" rows = commit order on monitor.
+# base: tag  = rebased onto each stable release, and cherry-picked onto monitor
+#       main = an upstream PR branch before its PR opens, rebased onto upstream/main, not on monitor
+#       pr   = an upstream PR branch with an open PR: never rebased, since a rewrite
+#              drops maintainers' commits (they merge main into it) and review context
+# monitor: what the task monitor (~/fl3xx/my-tasks-monitor, task_monitor/controllers/t3.py)
+#          loses when the branch goes; "-" = only the user's own setup uses it
+#
+# branch               base  monitor
+mcp-token              tag   its only way in: config reads `t3 auth mcp-token --json`
+list-worktree          tag   which worktree a thread is in (falls back to one t3_thread_read per thread)
+list-unread            tag   unread and "waits on what" (lastVisitedAt, latestRunCompletedAt, pendingRequest, hasActionableProposedPlan)
+pair-base-url          tag   -
+environment-label      tag   -
+launch-branch          tag   branch shown for threads it adopts with existing_worktree
+rebase-skill           tag   -
+pr/launch-branch       pr    -   (#34051)
