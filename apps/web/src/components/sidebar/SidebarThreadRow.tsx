@@ -47,6 +47,7 @@ import {
   CircleDashedIcon,
   CircleDotDashedIcon,
   ClockIcon,
+  FolderGit2Icon,
   GitBranchIcon,
   MessageCircleQuestionIcon,
   PinIcon,
@@ -79,6 +80,7 @@ import { useEnvironmentQuery } from "../../state/query";
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
 import { formatRelativeTimeLabel, parseTimestampDate } from "../../timestampFormat";
 import type { SidebarThreadSummary } from "../../types";
+import { isScratchProject } from "@t3tools/client-runtime/state/projects";
 import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
 import { cn } from "~/lib/utils";
 import { textDirection } from "~/textDirection";
@@ -111,8 +113,8 @@ import {
 } from "../ThreadStatusIndicators";
 import { formatWorktreePathForDisplay } from "../../worktreeCleanup";
 import { pickSnoozePreset, resolveSnoozePresets, type SnoozePreset } from "../Sidebar.snooze";
-import { useThreadShell } from "../../state/entities";
-import { ProjectFavicon, type ProjectFaviconProject } from "../ProjectFavicon";
+import { useServerConfigs, useThreadShell } from "../../state/entities";
+import { ProjectFavicon } from "../ProjectFavicon";
 import { ThreadSearchMatchExcerpt } from "../ThreadSearchMatch";
 import { makeWorkspaceFileDropHandlers } from "../chat/workspaceFileDrop";
 import { ProviderInstanceIcon } from "../chat/ProviderInstanceIcon";
@@ -236,6 +238,28 @@ function SidebarProviderStack(props: {
   );
 }
 
+// Mounts only while the card is open, so closed rows do not subscribe to server configs.
+function SidebarThreadTooltipFolder({
+  thread,
+  project,
+}: {
+  thread: SidebarThreadSummary;
+  project: EnvironmentProject | null;
+}) {
+  const scratchWorkspaceRoot = useServerConfigs().get(thread.environmentId)?.scratchWorkspaceRoot;
+  const worktreePath = thread.worktreePath?.trim();
+  // A Scratch thread's folder is not a checkout, so it stays unnamed.
+  if (!worktreePath || (project !== null && isScratchProject(project, scratchWorkspaceRoot))) {
+    return null;
+  }
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <FolderGit2Icon className="size-3 shrink-0 stroke-muted-foreground" />
+      <MiddleTruncate value={formatWorktreePathForDisplay(worktreePath)} className="flex" />
+    </div>
+  );
+}
+
 function SidebarThreadTooltip({
   thread,
   project,
@@ -252,7 +276,7 @@ function SidebarThreadTooltip({
   terminalProcessCount,
 }: {
   thread: SidebarThreadSummary;
-  project: ProjectFaviconProject | null;
+  project: EnvironmentProject | null;
   projectDisplayName: string | null;
   environmentLabel: string | null;
   environmentMachine: EnvironmentMachineKind;
@@ -306,6 +330,7 @@ function SidebarThreadTooltip({
             <MiddleTruncate value={thread.branch} className="flex" />
           </div>
         ) : null}
+        <SidebarThreadTooltipFolder thread={thread} project={project} />
         {branchMismatch ? (
           <div className="flex min-w-0 items-start gap-2 text-warning">
             <CircleAlertIcon aria-hidden className="mt-0.5 size-3 shrink-0 stroke-current" />
